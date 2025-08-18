@@ -11,6 +11,8 @@ import { StrategyStudio } from "@/components/trading/strategy-studio"
 import { CommunityHub } from "@/components/trading/community-hub"
 import { BacktestingDashboard } from "@/components/trading/backtesting-dashboard"
 import AlertDashboard from "@/components/trading/alert-dashboard"
+import { TestingDashboard } from "@/components/trading/testing-dashboard"
+import { PortfolioDashboard } from "@/components/trading/portfolio-dashboard"
 import { TrendingUp, TrendingDown, Activity, Bell, Settings, Signal } from "lucide-react"
 
 // Mock data for real-time trading
@@ -116,7 +118,7 @@ export default function TradingDashboard() {
       <nav className="border-b border-border bg-card">
         <div className="px-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-6 bg-transparent">
+            <TabsList className="grid w-full grid-cols-8 bg-transparent">
               <TabsTrigger
                 value="dashboard"
                 className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
@@ -152,6 +154,18 @@ export default function TradingDashboard() {
                 className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
               >
                 Alerts
+              </TabsTrigger>
+              <TabsTrigger
+                value="testing"
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
+                Testing
+              </TabsTrigger>
+              <TabsTrigger
+                value="portfolio"
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
+                Portfolio
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -322,6 +336,16 @@ export default function TradingDashboard() {
           {/* Alerts Tab */}
           <TabsContent value="alerts" className="space-y-6">
             <AlertDashboard />
+          </TabsContent>
+
+          {/* Testing Tab */}
+          <TabsContent value="testing" className="space-y-6">
+            <TestingDashboard />
+          </TabsContent>
+
+          {/* Portfolio Tab */}
+          <TabsContent value="portfolio" className="space-y-6">
+            <PortfolioDashboard />
           </TabsContent>
         </Tabs>
       </main>
