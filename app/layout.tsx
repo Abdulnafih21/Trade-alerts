@@ -43,7 +43,11 @@ html {
 }
         `}</style>
       </head>
-      <body className={`${workSans.variable} ${openSans.variable} font-sans`}>{children}</body>
+      <body
+        className={`${workSans.variable} ${openSans.variable} ${GeistSans.variable} ${GeistMono.variable} font-sans antialiased`}
+      >
+        <div className="min-h-screen bg-background text-foreground">{children}</div>
+      </body>
     </html>
   )
 }

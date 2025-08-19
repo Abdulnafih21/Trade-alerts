@@ -1,3 +1,6 @@
+import { binanceAPI, type CandlestickData } from "./binance-api"
+import { createServerClient } from "./supabase/server"
+
 export interface BacktestConfig {
   strategyId: string
   symbol: string
@@ -195,105 +198,153 @@ class PerformanceCalculator {
 export class BacktestingEngine {
   private historicalData: Map<string, any[]> = new Map()
   private results: Map<string, BacktestResults> = new Map()
+  private supabase = createServerClient()
 
   constructor() {
-    this.initializeMockData()
+    // No mock data initialization here
   }
 
-  private initializeMockData() {
-    // Generate mock historical data for backtesting
-    const symbols = ["BTCUSDT", "ETHUSDT", "SPY", "EURUSD"]
-    const startDate = new Date("2023-01-01")
-    const endDate = new Date("2024-08-17")
+  private async fetchHistoricalData(
+    symbol: string,
+    startDate: string,
+    endDate: string,
+    timeframe: string,
+  ): Promise<CandlestickData[]> {
+    try {
+      console.log(`[v0] Fetching historical data for ${symbol} from ${startDate} to ${endDate}`)
 
-    symbols.forEach((symbol) => {
-      const data = []
-      let currentPrice = symbol === "BTCUSDT" ? 30000 : symbol === "ETHUSDT" ? 2000 : symbol === "SPY" ? 400 : 1.08
+      // Convert timeframe to Binance format
+      const binanceTimeframe = this.convertTimeframeToBinance(timeframe)
 
-      for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
-        const change = (Math.random() - 0.5) * 0.04 // ±2% daily change
-        currentPrice *= 1 + change
+      // Calculate how many candles we need
+      const start = new Date(startDate).getTime()
+      const end = new Date(endDate).getTime()
+      const timeframMs = this.getTimeframeMs(timeframe)
+      const limit = Math.min(1000, Math.ceil((end - start) / timeframMs))
 
-        data.push({
-          timestamp: date.getTime(),
-          open: currentPrice * (1 + (Math.random() - 0.5) * 0.01),
-          high: currentPrice * (1 + Math.random() * 0.02),
-          low: currentPrice * (1 - Math.random() * 0.02),
-          close: currentPrice,
-          volume: Math.random() * 1000000,
-        })
-      }
+      const data = await binanceAPI.getHistoricalData(symbol, binanceTimeframe, limit)
+      console.log(`[v0] Fetched ${data.length} candles for ${symbol}`)
 
-      this.historicalData.set(symbol, data)
-    })
+      return data
+    } catch (error) {
+      console.error(`[v0] Error fetching historical data for ${symbol}:`, error)
+      throw new Error(`Failed to fetch historical data for ${symbol}`)
+    }
+  }
+
+  private convertTimeframeToBinance(timeframe: string): string {
+    const mapping: Record<string, string> = {
+      "1m": "1m",
+      "5m": "5m",
+      "15m": "15m",
+      "1h": "1h",
+      "1d": "1d",
+    }
+    return mapping[timeframe] || "1h"
+  }
+
+  private getTimeframeMs(timeframe: string): number {
+    const mapping: Record<string, number> = {
+      "1m": 60 * 1000,
+      "5m": 5 * 60 * 1000,
+      "15m": 15 * 60 * 1000,
+      "1h": 60 * 60 * 1000,
+      "1d": 24 * 60 * 60 * 1000,
+    }
+    return mapping[timeframe] || 60 * 60 * 1000
   }
 
   async runBacktest(config: BacktestConfig): Promise<BacktestResults> {
     const startTime = Date.now()
+    console.log(`[v0] Starting backtest for ${config.symbol} with strategy ${config.strategyId}`)
 
-    // Get historical data
-    const data = this.historicalData.get(config.symbol) || []
-    const filteredData = data.filter(
-      (d) => d.timestamp >= new Date(config.startDate).getTime() && d.timestamp <= new Date(config.endDate).getTime(),
-    )
+    try {
+      const historicalData = await this.fetchHistoricalData(
+        config.symbol,
+        config.startDate,
+        config.endDate,
+        config.timeframe,
+      )
 
-    // Simulate strategy execution
-    const trades = this.simulateStrategy(filteredData, config)
+      if (historicalData.length === 0) {
+        throw new Error(`No historical data available for ${config.symbol}`)
+      }
 
-    // Calculate performance metrics
-    const performance = this.calculatePerformance(trades, config)
-    const equity = this.calculateEquityCurve(trades, config.initialCapital)
-    const drawdown = this.calculateDrawdownCurve(equity)
-    const monthlyReturns = this.calculateMonthlyReturns(trades)
-    const riskMetrics = this.calculateRiskMetrics(equity)
-    const tradeAnalysis = this.analyzeTradePatterns(trades)
+      console.log(`[v0] Running strategy simulation on ${historicalData.length} data points`)
 
-    const results: BacktestResults = {
-      id: `backtest-${Date.now()}`,
-      config,
-      trades,
-      performance,
-      equity,
-      drawdown,
-      monthlyReturns,
-      riskMetrics,
-      tradeAnalysis,
-      startTime,
-      endTime: Date.now(),
-      duration: Date.now() - startTime,
+      // Convert Binance data to internal format
+      const formattedData = historicalData.map((candle) => ({
+        timestamp: candle.openTime,
+        open: Number.parseFloat(candle.open),
+        high: Number.parseFloat(candle.high),
+        low: Number.parseFloat(candle.low),
+        close: Number.parseFloat(candle.close),
+        volume: Number.parseFloat(candle.volume),
+      }))
+
+      // Simulate strategy execution with real data
+      const trades = await this.simulateStrategyWithRealData(formattedData, config)
+      console.log(`[v0] Generated ${trades.length} trades`)
+
+      // Calculate performance metrics
+      const performance = this.calculatePerformance(trades, config)
+      const equity = this.calculateEquityCurve(trades, config.initialCapital)
+      const drawdown = this.calculateDrawdownCurve(equity)
+      const monthlyReturns = this.calculateMonthlyReturns(trades)
+      const riskMetrics = this.calculateRiskMetrics(equity)
+      const tradeAnalysis = this.analyzeTradePatterns(trades)
+
+      const results: BacktestResults = {
+        id: `backtest-${Date.now()}`,
+        config,
+        trades,
+        performance,
+        equity,
+        drawdown,
+        monthlyReturns,
+        riskMetrics,
+        tradeAnalysis,
+        startTime,
+        endTime: Date.now(),
+        duration: Date.now() - startTime,
+      }
+
+      await this.storeBacktestResults(results)
+
+      this.results.set(results.id, results)
+      console.log(`[v0] Backtest completed successfully with ${performance.totalReturn * 100}% return`)
+
+      return results
+    } catch (error) {
+      console.error(`[v0] Backtest failed:`, error)
+      throw error
     }
-
-    this.results.set(results.id, results)
-    return results
   }
 
-  private simulateStrategy(data: any[], config: BacktestConfig): Trade[] {
+  private async simulateStrategyWithRealData(data: any[], config: BacktestConfig): Promise<Trade[]> {
     const trades: Trade[] = []
     let position: Trade | null = null
     let capital = config.initialCapital
 
-    for (let i = 20; i < data.length; i++) {
-      // Start after 20 bars for indicators
+    for (let i = 50; i < data.length; i++) {
       const current = data[i]
-      const previous = data.slice(i - 20, i)
+      const historicalPrices = data.slice(Math.max(0, i - 50), i).map((d) => d.close)
 
-      // Simple momentum strategy simulation
-      const ema9 = this.calculateEMA(
-        previous.map((d) => d.close),
-        9,
-      )
-      const ema21 = this.calculateEMA(
-        previous.map((d) => d.close),
-        21,
-      )
-      const rsi = this.calculateRSI(
-        previous.map((d) => d.close),
-        14,
-      )
+      // Use the same technical indicators as the live trading engine
+      const indicators = {
+        rsi: this.calculateRSI(historicalPrices, 14),
+        ema9: this.calculateEMA(historicalPrices, 9),
+        ema21: this.calculateEMA(historicalPrices, 21),
+        macd: this.calculateMACD(historicalPrices),
+      }
 
-      // Entry conditions
-      if (!position && ema9 > ema21 && rsi > 30 && rsi < 70) {
-        const quantity = (capital * config.riskPerTrade) / current.close
+      // Apply strategy logic based on config.strategyId
+      const signal = this.evaluateStrategy(config.strategyId, indicators, current)
+
+      // Entry logic
+      if (!position && signal.action === "LONG") {
+        const riskAmount = capital * config.riskPerTrade
+        const quantity = riskAmount / current.close
         const commission = quantity * current.close * config.commission
         const slippage = quantity * current.close * config.slippage
 
@@ -302,16 +353,16 @@ export class BacktestingEngine {
           symbol: config.symbol,
           side: "LONG",
           entryTime: current.timestamp,
-          entryPrice: current.close * (1 + config.slippage), // Account for slippage
+          entryPrice: current.close * (1 + config.slippage),
           quantity,
           commission,
           slippage,
-          reason: "EMA crossover + RSI confirmation",
+          reason: signal.reason,
         }
       }
 
-      // Exit conditions
-      if (position && (ema9 < ema21 || rsi > 80 || rsi < 20)) {
+      // Exit logic
+      if (position && (signal.action === "EXIT" || this.shouldExit(position, current, indicators))) {
         const exitPrice = current.close * (1 - config.slippage)
         const exitCommission = position.quantity * exitPrice * config.commission
         const pnl = (exitPrice - position.entryPrice) * position.quantity - position.commission - exitCommission
@@ -334,6 +385,101 @@ export class BacktestingEngine {
     }
 
     return trades
+  }
+
+  private evaluateStrategy(
+    strategyId: string,
+    indicators: any,
+    current: any,
+  ): { action: "LONG" | "SHORT" | "EXIT" | "HOLD"; reason: string } {
+    const { rsi, ema9, ema21, macd } = indicators
+
+    switch (strategyId) {
+      case "momentum-scalper":
+        if (ema9 > ema21 && rsi > 50 && rsi < 70 && macd.histogram > 0) {
+          return { action: "LONG", reason: "Momentum: EMA9 > EMA21, RSI bullish, MACD positive" }
+        }
+        if (ema9 < ema21 || rsi > 80 || rsi < 30) {
+          return { action: "EXIT", reason: "Momentum exit: Trend reversal or RSI extreme" }
+        }
+        break
+
+      case "mean-reversion":
+        if (rsi < 30 && ema9 < ema21) {
+          return { action: "LONG", reason: "Mean reversion: RSI oversold, price below EMA21" }
+        }
+        if (rsi > 50) {
+          return { action: "EXIT", reason: "Mean reversion exit: RSI normalized" }
+        }
+        break
+
+      case "breakout-hunter":
+        // Simplified breakout logic
+        if (ema9 > ema21 * 1.005 && rsi > 60 && macd.macd > macd.signal) {
+          return { action: "LONG", reason: "Breakout: Strong EMA divergence, RSI momentum, MACD bullish" }
+        }
+        if (ema9 < ema21 * 0.995) {
+          return { action: "EXIT", reason: "Breakout exit: EMA convergence" }
+        }
+        break
+
+      default:
+        return { action: "HOLD", reason: "Unknown strategy" }
+    }
+
+    return { action: "HOLD", reason: "No signal" }
+  }
+
+  private shouldExit(position: Trade, current: any, indicators: any): boolean {
+    // Stop loss and take profit logic
+    const currentPrice = current.close
+    const entryPrice = position.entryPrice
+
+    // 5% stop loss, 10% take profit
+    const stopLoss = entryPrice * 0.95
+    const takeProfit = entryPrice * 1.1
+
+    return currentPrice <= stopLoss || currentPrice >= takeProfit
+  }
+
+  private calculateMACD(prices: number[]): { macd: number; signal: number; histogram: number } {
+    if (prices.length < 26) return { macd: 0, signal: 0, histogram: 0 }
+
+    const ema12 = this.calculateEMA(prices, 12)
+    const ema26 = this.calculateEMA(prices, 26)
+    const macd = ema12 - ema26
+
+    // Simplified signal line (9-period EMA of MACD)
+    const signal = macd * 0.8 // Approximation
+    const histogram = macd - signal
+
+    return { macd, signal, histogram }
+  }
+
+  private async storeBacktestResults(results: BacktestResults): Promise<void> {
+    try {
+      const { error } = await this.supabase.from("backtest_results").insert({
+        strategy_name: results.config.strategyId,
+        symbol: results.config.symbol,
+        timeframe: results.config.timeframe,
+        start_date: results.config.startDate,
+        end_date: results.config.endDate,
+        total_return: results.performance.totalReturn,
+        sharpe_ratio: results.performance.sharpeRatio,
+        max_drawdown: results.performance.maxDrawdown,
+        win_rate: results.performance.winRate,
+        total_trades: results.performance.totalTrades,
+        profit_factor: results.performance.profitFactor,
+      })
+
+      if (error) {
+        console.error("[v0] Error storing backtest results:", error)
+      } else {
+        console.log("[v0] Backtest results stored successfully")
+      }
+    } catch (error) {
+      console.error("[v0] Error storing backtest results:", error)
+    }
   }
 
   private calculateEMA(prices: number[], period: number): number {

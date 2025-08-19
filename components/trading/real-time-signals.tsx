@@ -6,90 +6,88 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { signalEngine, type Signal, type Strategy } from "@/lib/signal-engine"
-import { TrendingUp, TrendingDown, Zap, Target, Clock } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { tradingSignalsEngine, type TradingSignal } from "@/lib/trading-signals"
+import { POPULAR_SYMBOLS } from "@/lib/binance-api"
+import { TrendingUp, TrendingDown, Zap, Target, Clock, Filter, RefreshCw } from "lucide-react"
+
+interface SignalWithId extends TradingSignal {
+  id: string
+  created_at: string
+}
 
 export function RealTimeSignals() {
-  const [signals, setSignals] = useState<Signal[]>([])
-  const [strategies, setStrategies] = useState<Strategy[]>([])
+  const [signals, setSignals] = useState<SignalWithId[]>([])
+  const [filteredSignals, setFilteredSignals] = useState<SignalWithId[]>([])
+  const [selectedSymbol, setSelectedSymbol] = useState<string>("all")
   const [selectedStrategy, setSelectedStrategy] = useState<string>("all")
+  const [selectedSignalType, setSelectedSignalType] = useState<string>("all")
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
+  const [signalStats, setSignalStats] = useState({
+    totalSignals: 0,
+    longSignals: 0,
+    shortSignals: 0,
+    avgConfidence: 0,
+    mostActiveSymbol: "N/A",
+  })
 
-  useEffect(() => {
-    // Initialize with mock data and start real-time updates
-    const initializeData = () => {
-      // Simulate market data updates
-      const symbols = ["BTCUSDT", "ETHUSDT", "SPY", "EURUSD"]
+  const loadSignalsFromDatabase = async () => {
+    try {
+      const signals = await tradingSignalsEngine.getRecentSignals(50)
+      const signalsWithId = signals.map((signal, index) => ({
+        ...signal,
+        id: signal.id || `signal-${index}`,
+        created_at: signal.created_at || new Date().toISOString(),
+      }))
 
-      symbols.forEach((symbol) => {
-        // Generate initial historical data
-        for (let i = 0; i < 50; i++) {
-          const basePrice = symbol === "BTCUSDT" ? 67000 : symbol === "ETHUSDT" ? 3400 : symbol === "SPY" ? 445 : 1.087
+      setSignals(signalsWithId)
+      setLastUpdate(new Date())
 
-          signalEngine.updateMarketData(symbol, {
-            symbol,
-            price: basePrice + (Math.random() - 0.5) * basePrice * 0.02,
-            volume: Math.random() * 1000000,
-            timestamp: Date.now() - (50 - i) * 60000,
-            high: basePrice * (1 + Math.random() * 0.01),
-            low: basePrice * (1 - Math.random() * 0.01),
-            open: basePrice + (Math.random() - 0.5) * basePrice * 0.005,
-            close: basePrice + (Math.random() - 0.5) * basePrice * 0.005,
-          })
+      // Calculate stats
+      const stats = {
+        totalSignals: signalsWithId.length,
+        longSignals: signalsWithId.filter((s) => s.signal_type === "LONG").length,
+        shortSignals: signalsWithId.filter((s) => s.signal_type === "SHORT").length,
+        avgConfidence:
+          signalsWithId.length > 0 ? signalsWithId.reduce((sum, s) => sum + s.confidence, 0) / signalsWithId.length : 0,
+        mostActiveSymbol: getMostActiveSymbol(signalsWithId),
+      }
+      setSignalStats(stats)
+    } catch (error) {
+      console.error("Error loading signals:", error)
+    }
+  }
+
+  const generateRealTimeSignals = async () => {
+    if (isGenerating) return
+
+    setIsGenerating(true)
+    try {
+      // Generate signals for popular symbols
+      for (const symbol of POPULAR_SYMBOLS.slice(0, 4)) {
+        const signal = await tradingSignalsEngine.generateSignal(symbol)
+        if (signal && signal.signal_type !== "FLAT") {
+          const saved = await tradingSignalsEngine.saveSignal(signal)
+          if (saved) {
+            console.log(`Generated ${signal.signal_type} signal for ${symbol}`)
+          }
         }
-      })
+      }
 
-      setStrategies(signalEngine.getStrategies())
-      setSignals(signalEngine.getSignalHistory(20))
+      // Reload signals from database
+      await loadSignalsFromDatabase()
+    } catch (error) {
+      console.error("Error generating signals:", error)
+    } finally {
+      setIsGenerating(false)
     }
-
-    initializeData()
-
-    // Simulate real-time updates
-    const interval = setInterval(() => {
-      const symbols = ["BTCUSDT", "ETHUSDT", "SPY", "EURUSD"]
-      const randomSymbol = symbols[Math.floor(Math.random() * symbols.length)]
-
-      const basePrice =
-        randomSymbol === "BTCUSDT" ? 67000 : randomSymbol === "ETHUSDT" ? 3400 : randomSymbol === "SPY" ? 445 : 1.087
-
-      signalEngine.updateMarketData(randomSymbol, {
-        symbol: randomSymbol,
-        price: basePrice + (Math.random() - 0.5) * basePrice * 0.02,
-        volume: Math.random() * 1000000,
-        timestamp: Date.now(),
-        high: basePrice * (1 + Math.random() * 0.01),
-        low: basePrice * (1 - Math.random() * 0.01),
-        open: basePrice + (Math.random() - 0.5) * basePrice * 0.005,
-        close: basePrice + (Math.random() - 0.5) * basePrice * 0.005,
-      })
-
-      setSignals(signalEngine.getSignalHistory(20))
-    }, 3000)
-
-    return () => clearInterval(interval)
-  }, [])
-
-  const filteredSignals =
-    selectedStrategy === "all" ? signals : signals.filter((signal) => signal.strategyId === selectedStrategy)
-
-  const formatPrice = (price: number, symbol: string) => {
-    if (symbol.includes("USD") && !symbol.includes("USDT")) {
-      return price.toFixed(4)
-    }
-    return price.toLocaleString()
   }
 
-  const getTimeAgo = (timestamp: number) => {
-    const minutes = Math.floor((Date.now() - timestamp) / 60000)
-    if (minutes < 1) return "Just now"
-    if (minutes === 1) return "1 min ago"
-    return `${minutes} min ago`
-  }
+  const getMostActiveSymbol = (signalList: SignalWithId[]) => {
+    if (signalList.length === 0) return "N/A"
 
-  const getMostActiveSymbol = () => {
-    if (signals.length === 0) return "N/A"
-
-    const symbolCounts: Record<string, number> = signals.reduce((acc, signal) => {
+    const symbolCounts: Record<string, number> = signalList.reduce((acc, signal) => {
       acc[signal.symbol] = (acc[signal.symbol] || 0) + 1
       return acc
     }, {})
@@ -100,6 +98,58 @@ export function RealTimeSignals() {
     return entries[0]?.[0] || "N/A"
   }
 
+  useEffect(() => {
+    let filtered = signals
+
+    if (selectedSymbol !== "all") {
+      filtered = filtered.filter((signal) => signal.symbol === selectedSymbol)
+    }
+
+    if (selectedStrategy !== "all") {
+      filtered = filtered.filter((signal) => signal.strategy_name === selectedStrategy)
+    }
+
+    if (selectedSignalType !== "all") {
+      filtered = filtered.filter((signal) => signal.signal_type === selectedSignalType)
+    }
+
+    setFilteredSignals(filtered)
+  }, [signals, selectedSymbol, selectedStrategy, selectedSignalType])
+
+  useEffect(() => {
+    loadSignalsFromDatabase()
+
+    // Set up periodic signal generation and refresh
+    const signalInterval = setInterval(generateRealTimeSignals, 30000) // Generate every 30 seconds
+    const refreshInterval = setInterval(loadSignalsFromDatabase, 10000) // Refresh every 10 seconds
+
+    return () => {
+      clearInterval(signalInterval)
+      clearInterval(refreshInterval)
+    }
+  }, [])
+
+  const formatPrice = (price: number, symbol: string) => {
+    if (symbol.includes("USD") && !symbol.includes("USDT")) {
+      return price.toFixed(4)
+    }
+    return price > 1 ? price.toFixed(2) : price.toFixed(4)
+  }
+
+  const getTimeAgo = (timestamp: string) => {
+    const minutes = Math.floor((Date.now() - new Date(timestamp).getTime()) / 60000)
+    if (minutes < 1) return "Just now"
+    if (minutes === 1) return "1 min ago"
+    if (minutes < 60) return `${minutes} min ago`
+    const hours = Math.floor(minutes / 60)
+    if (hours === 1) return "1 hour ago"
+    if (hours < 24) return `${hours} hours ago`
+    return new Date(timestamp).toLocaleDateString()
+  }
+
+  const uniqueStrategies = Array.from(new Set(signals.map((s) => s.strategy_name)))
+  const uniqueSymbols = Array.from(new Set(signals.map((s) => s.symbol)))
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -109,36 +159,86 @@ export function RealTimeSignals() {
             <Zap className="h-3 w-3 mr-1" />
             LIVE
           </Badge>
-          <Button variant="outline" size="sm">
-            <Target className="h-4 w-4 mr-2" />
-            Configure Alerts
+          <Button variant="outline" size="sm" onClick={generateRealTimeSignals} disabled={isGenerating}>
+            {isGenerating ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Target className="h-4 w-4 mr-2" />}
+            {isGenerating ? "Generating..." : "Generate Signals"}
           </Button>
         </div>
       </div>
 
       <Tabs defaultValue="signals" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="signals">Active Signals</TabsTrigger>
-          <TabsTrigger value="strategies">Strategy Performance</TabsTrigger>
+          <TabsTrigger value="signals">Active Signals ({filteredSignals.length})</TabsTrigger>
           <TabsTrigger value="analytics">Signal Analytics</TabsTrigger>
+          <TabsTrigger value="history">Signal History</TabsTrigger>
         </TabsList>
 
         <TabsContent value="signals" className="space-y-4">
-          <div className="flex items-center space-x-4 mb-4">
-            <label className="text-sm font-medium">Filter by Strategy:</label>
-            <select
-              value={selectedStrategy}
-              onChange={(e) => setSelectedStrategy(e.target.value)}
-              className="px-3 py-1 rounded-md bg-input border border-border text-sm"
-            >
-              <option value="all">All Strategies</option>
-              {strategies.map((strategy) => (
-                <option key={strategy.id} value={strategy.id}>
-                  {strategy.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Filter className="h-4 w-4 mr-2" />
+                Filter Signals
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Symbol</label>
+                  <Select value={selectedSymbol} onValueChange={setSelectedSymbol}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Symbols</SelectItem>
+                      {uniqueSymbols.map((symbol) => (
+                        <SelectItem key={symbol} value={symbol}>
+                          {symbol.replace("USDT", "/USDT")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Strategy</label>
+                  <Select value={selectedStrategy} onValueChange={setSelectedStrategy}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Strategies</SelectItem>
+                      {uniqueStrategies.map((strategy) => (
+                        <SelectItem key={strategy} value={strategy}>
+                          {strategy}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Signal Type</label>
+                  <Select value={selectedSignalType} onValueChange={setSelectedSignalType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="LONG">LONG</SelectItem>
+                      <SelectItem value="SHORT">SHORT</SelectItem>
+                      <SelectItem value="FLAT">FLAT</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Last Updated</label>
+                  <div className="text-sm text-muted-foreground pt-2">{lastUpdate.toLocaleTimeString()}</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="grid gap-4">
             {filteredSignals.map((signal) => (
@@ -147,48 +247,58 @@ export function RealTimeSignals() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
                       <div className="flex items-center space-x-2">
-                        {signal.side === "LONG" ? (
+                        {signal.signal_type === "LONG" ? (
                           <TrendingUp className="h-6 w-6 text-chart-4" />
-                        ) : (
+                        ) : signal.signal_type === "SHORT" ? (
                           <TrendingDown className="h-6 w-6 text-chart-2" />
+                        ) : (
+                          <Target className="h-6 w-6 text-muted-foreground" />
                         )}
                         <Badge
-                          variant={signal.side === "LONG" ? "default" : "destructive"}
+                          variant={
+                            signal.signal_type === "LONG"
+                              ? "default"
+                              : signal.signal_type === "SHORT"
+                                ? "destructive"
+                                : "secondary"
+                          }
                           className={`text-sm px-3 py-1 ${
-                            signal.side === "LONG" ? "bg-chart-4 hover:bg-chart-4/80" : "bg-chart-2 hover:bg-chart-2/80"
+                            signal.signal_type === "LONG"
+                              ? "bg-chart-4 hover:bg-chart-4/80"
+                              : signal.signal_type === "SHORT"
+                                ? "bg-chart-2 hover:bg-chart-2/80"
+                                : "bg-muted"
                           }`}
                         >
-                          {signal.side}
+                          {signal.signal_type}
                         </Badge>
                       </div>
                       <div>
-                        <h3 className="text-lg font-semibold">{signal.symbol}</h3>
-                        <p className="text-sm text-muted-foreground">{signal.reason.join(" • ")}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Strategy: {strategies.find((s) => s.id === signal.strategyId)?.name || "Unknown"}
-                        </p>
+                        <h3 className="text-lg font-semibold">{signal.symbol.replace("USDT", "/USDT")}</h3>
+                        <p className="text-sm text-muted-foreground">{signal.reasoning}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Strategy: {signal.strategy_name}</p>
                       </div>
                     </div>
 
                     <div className="text-right space-y-2">
-                      <div className="text-2xl font-bold">${formatPrice(signal.price, signal.symbol)}</div>
+                      <div className="text-2xl font-bold">${formatPrice(signal.entry_price, signal.symbol)}</div>
                       <div className="flex items-center space-x-2">
-                        <Progress value={signal.confidence * 100} className="w-20" />
-                        <span className="text-sm font-medium">{Math.round(signal.confidence * 100)}%</span>
+                        <Progress value={signal.confidence} className="w-20" />
+                        <span className="text-sm font-medium">{Math.round(signal.confidence)}%</span>
                       </div>
                       <div className="flex items-center text-xs text-muted-foreground">
                         <Clock className="h-3 w-3 mr-1" />
-                        {getTimeAgo(signal.timestamp)}
+                        {getTimeAgo(signal.created_at)}
                       </div>
-                      {signal.stopLoss && signal.takeProfit && (
+                      {signal.stop_loss && signal.take_profit && (
                         <div className="text-xs space-y-1">
                           <div className="flex justify-between">
                             <span>SL:</span>
-                            <span className="text-chart-2">${formatPrice(signal.stopLoss, signal.symbol)}</span>
+                            <span className="text-chart-2">${formatPrice(signal.stop_loss, signal.symbol)}</span>
                           </div>
                           <div className="flex justify-between">
                             <span>TP:</span>
-                            <span className="text-chart-4">${formatPrice(signal.takeProfit, signal.symbol)}</span>
+                            <span className="text-chart-4">${formatPrice(signal.take_profit, signal.symbol)}</span>
                           </div>
                         </div>
                       )}
@@ -202,63 +312,33 @@ export function RealTimeSignals() {
               <Card className="bg-card border-border">
                 <CardContent className="p-12 text-center">
                   <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No Active Signals</h3>
-                  <p className="text-muted-foreground">Waiting for market conditions to meet strategy criteria...</p>
+                  <h3 className="text-lg font-semibold mb-2">No Signals Found</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {signals.length === 0
+                      ? "No signals generated yet. Click 'Generate Signals' to create new ones."
+                      : "No signals match your current filters. Try adjusting the filter criteria."}
+                  </p>
+                  <Button onClick={generateRealTimeSignals} disabled={isGenerating}>
+                    {isGenerating ? "Generating..." : "Generate New Signals"}
+                  </Button>
                 </CardContent>
               </Card>
             )}
           </div>
         </TabsContent>
 
-        <TabsContent value="strategies" className="space-y-4">
-          <div className="grid gap-4">
-            {strategies.map((strategy) => (
-              <Card key={strategy.id} className="bg-card border-border">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="font-[var(--font-heading)]">{strategy.name}</CardTitle>
-                      <p className="text-sm text-muted-foreground mt-1">{strategy.description}</p>
-                      <p className="text-xs text-muted-foreground">by {strategy.author}</p>
-                    </div>
-                    <Badge variant="outline" className="capitalize">
-                      {strategy.type.replace("-", " ")}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-chart-4">
-                        {(strategy.performance.winRate * 100).toFixed(1)}%
-                      </div>
-                      <div className="text-xs text-muted-foreground">Win Rate</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-primary">
-                        {strategy.performance.sharpeRatio.toFixed(2)}
-                      </div>
-                      <div className="text-xs text-muted-foreground">Sharpe Ratio</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-chart-3">
-                        {(strategy.performance.avgReturn * 100).toFixed(1)}%
-                      </div>
-                      <div className="text-xs text-muted-foreground">Avg Return</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold">{strategy.performance.totalSignals.toLocaleString()}</div>
-                      <div className="text-xs text-muted-foreground">Total Signals</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-
         <TabsContent value="analytics" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="text-lg">Total Signals</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-primary">{signalStats.totalSignals}</div>
+                <p className="text-sm text-muted-foreground mt-2">Generated signals</p>
+              </CardContent>
+            </Card>
+
             <Card className="bg-card border-border">
               <CardHeader>
                 <CardTitle className="text-lg">Signal Distribution</CardTitle>
@@ -266,20 +346,12 @@ export function RealTimeSignals() {
               <CardContent>
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span>LONG Signals</span>
-                    <span className="font-semibold text-chart-4">
-                      {signals.filter((s) => s.side === "LONG").length}
-                    </span>
+                    <span>LONG</span>
+                    <span className="font-semibold text-chart-4">{signalStats.longSignals}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>SHORT Signals</span>
-                    <span className="font-semibold text-chart-2">
-                      {signals.filter((s) => s.side === "SHORT").length}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Total Active</span>
-                    <span className="font-semibold">{signals.length}</span>
+                    <span>SHORT</span>
+                    <span className="font-semibold text-chart-2">{signalStats.shortSignals}</span>
                   </div>
                 </div>
               </CardContent>
@@ -290,13 +362,8 @@ export function RealTimeSignals() {
                 <CardTitle className="text-lg">Avg Confidence</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-primary">
-                  {signals.length > 0
-                    ? Math.round((signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length) * 100)
-                    : 0}
-                  %
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">Across all active signals</p>
+                <div className="text-3xl font-bold text-primary">{Math.round(signalStats.avgConfidence)}%</div>
+                <p className="text-sm text-muted-foreground mt-2">Across all signals</p>
               </CardContent>
             </Card>
 
@@ -305,11 +372,77 @@ export function RealTimeSignals() {
                 <CardTitle className="text-lg">Most Active Symbol</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{getMostActiveSymbol()}</div>
-                <p className="text-sm text-muted-foreground mt-2">Generating most signals</p>
+                <div className="text-2xl font-bold">{signalStats.mostActiveSymbol.replace("USDT", "/USDT")}</div>
+                <p className="text-sm text-muted-foreground mt-2">Most signals generated</p>
               </CardContent>
             </Card>
           </div>
+
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle>Strategy Performance</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {uniqueStrategies.map((strategy) => {
+                  const strategySignals = signals.filter((s) => s.strategy_name === strategy)
+                  const avgConfidence =
+                    strategySignals.length > 0
+                      ? strategySignals.reduce((sum, s) => sum + s.confidence, 0) / strategySignals.length
+                      : 0
+
+                  return (
+                    <div key={strategy} className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                      <div>
+                        <h4 className="font-semibold">{strategy}</h4>
+                        <p className="text-sm text-muted-foreground">{strategySignals.length} signals</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold">{Math.round(avgConfidence)}%</div>
+                        <div className="text-sm text-muted-foreground">Avg Confidence</div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-4">
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle>Recent Signal History</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {signals.slice(0, 10).map((signal) => (
+                  <div key={signal.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                    <div className="flex items-center space-x-3">
+                      <Badge
+                        variant={
+                          signal.signal_type === "LONG"
+                            ? "default"
+                            : signal.signal_type === "SHORT"
+                              ? "destructive"
+                              : "secondary"
+                        }
+                        className="text-xs"
+                      >
+                        {signal.signal_type}
+                      </Badge>
+                      <span className="font-medium">{signal.symbol.replace("USDT", "/USDT")}</span>
+                      <span className="text-sm text-muted-foreground">{signal.strategy_name}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold">${formatPrice(signal.entry_price, signal.symbol)}</div>
+                      <div className="text-xs text-muted-foreground">{getTimeAgo(signal.created_at)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

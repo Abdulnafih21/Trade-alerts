@@ -4,76 +4,76 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Updated color scheme for trading platform with dark theme optimized for traders */
-  --background: oklch(0.145 0 0); /* Dark background #1f2937 equivalent */
-  --foreground: oklch(0.985 0 0); /* White text */
-  --card: oklch(0.205 0 0); /* Card background #374151 equivalent */
-  --card-foreground: oklch(0.985 0 0); /* White text on cards */
-  --popover: oklch(0.205 0 0); /* Popover background */
-  --popover-foreground: oklch(0.985 0 0); /* White text in popovers */
-  --primary: oklch(0.646 0.222 264.376); /* Purple accent #8b5cf6 equivalent */
-  --primary-foreground: oklch(0.985 0 0); /* White text on primary */
-  --secondary: oklch(0.439 0 0); /* Gray secondary #6b7280 equivalent */
-  --secondary-foreground: oklch(0.985 0 0); /* White text on secondary */
-  --muted: oklch(0.97 0 0); /* Light muted background */
-  --muted-foreground: oklch(0.205 0 0); /* Dark muted text */
-  --accent: oklch(0.646 0.222 264.376); /* Purple accent */
-  --accent-foreground: oklch(0.985 0 0); /* White text on accent */
-  --destructive: oklch(0.577 0.245 27.325); /* Red for destructive actions */
-  --destructive-foreground: oklch(0.985 0 0); /* White text on destructive */
-  --border: oklch(0.439 0 0); /* Gray borders */
-  --input: oklch(0.205 0 0); /* Dark input background */
-  --ring: oklch(0.646 0.222 264.376 / 0.5); /* Purple focus ring */
-  --chart-1: oklch(0.646 0.222 264.376); /* Purple for charts */
-  --chart-2: oklch(0.577 0.245 27.325); /* Red for charts */
-  --chart-3: oklch(0.769 0.188 70.08); /* Orange for charts */
-  --chart-4: oklch(0.696 0.17 162.48); /* Green for charts */
-  --chart-5: oklch(0.627 0.265 303.9); /* Blue for charts */
-  --radius: 0.5rem;
-  --sidebar: oklch(0.205 0 0); /* Dark sidebar */
-  --sidebar-foreground: oklch(0.985 0 0); /* White sidebar text */
-  --sidebar-primary: oklch(0.145 0 0); /* Primary sidebar color */
-  --sidebar-primary-foreground: oklch(0.985 0 0); /* White text on primary sidebar */
-  --sidebar-accent: oklch(0.646 0.222 264.376); /* Purple sidebar accent */
-  --sidebar-accent-foreground: oklch(0.985 0 0); /* White text on sidebar accent */
-  --sidebar-border: oklch(0.439 0 0); /* Gray sidebar border */
-  --sidebar-ring: oklch(0.646 0.222 264.376 / 0.7); /* Purple focus ring for sidebar */
+  /* Updated color scheme to match design brief with red primary and orange accent */
+  --background: #ffffff; /* Light mode background */
+  --foreground: #374151; /* Dark text for light mode */
+  --card: #fef2f2; /* Light card background */
+  --card-foreground: #374151; /* Dark text for cards */
+  --popover: #ffffff; /* Popover background */
+  --popover-foreground: #374151; /* Popover text */
+  --primary: #dc2626; /* Primary action color - red */
+  --primary-foreground: #ffffff; /* Text color for primary actions */
+  --secondary: #f59e0b; /* Accent color - orange */
+  --secondary-foreground: #ffffff; /* Text color for secondary actions */
+  --muted: #fef2f2; /* Muted elements */
+  --muted-foreground: #374151; /* Muted text */
+  --accent: #f59e0b; /* Accent for gradients - orange */
+  --accent-foreground: #ffffff; /* Text color for accent elements */
+  --destructive: #dc2626; /* Destructive actions */
+  --destructive-foreground: #ffffff; /* Text for destructive actions */
+  --border: #e5e7eb; /* Light border color */
+  --input: #ffffff; /* Input background */
+  --ring: rgba(220, 38, 38, 0.5); /* Ring color for focus states */
+  --chart-1: #dc2626; /* Chart color 1 - red */
+  --chart-2: #f59e0b; /* Chart color 2 - orange */
+  --chart-3: #374151; /* Chart color 3 - dark gray */
+  --chart-4: #10b981; /* Chart color 4 - green */
+  --chart-5: #3b82f6; /* Chart color 5 - blue */
+  --radius: 0.5rem; /* Corner rounding */
+  --sidebar: #fef2f2; /* Sidebar background in light mode */
+  --sidebar-foreground: #374151; /* Sidebar text in light mode */
+  --sidebar-primary: #dc2626; /* Primary sidebar action color */
+  --sidebar-primary-foreground: #ffffff; /* Text for primary sidebar actions */
+  --sidebar-accent: #f59e0b; /* Sidebar accent color */
+  --sidebar-accent-foreground: #ffffff; /* Text for sidebar accent */
+  --sidebar-border: #e5e7eb; /* Sidebar border color */
+  --sidebar-ring: rgba(220, 38, 38, 0.5); /* Sidebar focus ring */
 }
 
 .dark {
-  /* Dark mode uses same colors as root for consistent dark trading theme */
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.646 0.222 264.376);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.439 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.646 0.222 264.376);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.646 0.222 264.376 / 0.5);
-  --chart-1: oklch(0.646 0.222 264.376);
-  --chart-2: oklch(0.577 0.245 27.325);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.696 0.17 162.48);
-  --chart-5: oklch(0.627 0.265 303.9);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.646 0.222 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.646 0.222 264.376 / 0.7);
+  /* Dark mode optimized for trading with professional colors */
+  --background: #0f172a; /* Very dark background for trading */
+  --foreground: #f8fafc; /* Light text */
+  --card: #1e293b; /* Dark card background */
+  --card-foreground: #f8fafc; /* Light text on cards */
+  --popover: #1e293b; /* Dark popover background */
+  --popover-foreground: #f8fafc; /* Light popover text */
+  --primary: #dc2626; /* Red primary - consistent across themes */
+  --primary-foreground: #ffffff; /* White text on primary */
+  --secondary: #f59e0b; /* Orange secondary - consistent */
+  --secondary-foreground: #ffffff; /* White text on secondary */
+  --muted: #334155; /* Dark muted background */
+  --muted-foreground: #94a3b8; /* Light muted text */
+  --accent: #f59e0b; /* Orange accent */
+  --accent-foreground: #ffffff; /* White text on accent */
+  --destructive: #ef4444; /* Slightly brighter red for dark mode */
+  --destructive-foreground: #ffffff; /* White text on destructive */
+  --border: #334155; /* Dark border */
+  --input: #1e293b; /* Dark input background */
+  --ring: rgba(220, 38, 38, 0.5); /* Red focus ring */
+  --chart-1: #dc2626; /* Red for charts */
+  --chart-2: #f59e0b; /* Orange for charts */
+  --chart-3: #64748b; /* Gray for charts */
+  --chart-4: #10b981; /* Green for charts */
+  --chart-5: #3b82f6; /* Blue for charts */
+  --sidebar: #1e293b; /* Dark sidebar */
+  --sidebar-foreground: #f8fafc; /* Light sidebar text */
+  --sidebar-primary: #dc2626; /* Red sidebar primary */
+  --sidebar-primary-foreground: #ffffff; /* White text on sidebar primary */
+  --sidebar-accent: #334155; /* Dark sidebar accent */
+  --sidebar-accent-foreground: #f8fafc; /* Light text on sidebar accent */
+  --sidebar-border: #334155; /* Dark sidebar border */
+  --sidebar-ring: rgba(220, 38, 38, 0.5); /* Red sidebar focus ring */
 }
 
 @theme inline {

@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from "recharts"
 import { backtestingEngine, type BacktestConfig, type BacktestResults } from "@/lib/backtesting-engine"
+import { POPULAR_SYMBOLS } from "@/lib/binance-api"
 import {
   Play,
   Settings,
@@ -29,13 +30,14 @@ export function BacktestingDashboard() {
   const [isRunning, setIsRunning] = useState(false)
   const [progress, setProgress] = useState(0)
   const [results, setResults] = useState<BacktestResults | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [config, setConfig] = useState<BacktestConfig>({
     strategyId: "momentum-scalper",
     symbol: "BTCUSDT",
-    startDate: "2023-01-01",
+    startDate: "2024-01-01",
     endDate: "2024-08-17",
     initialCapital: 100000,
-    timeframe: "1d",
+    timeframe: "1h",
     commission: 0.001,
     slippage: 0.0005,
     maxPositions: 1,
@@ -45,25 +47,30 @@ export function BacktestingDashboard() {
   const runBacktest = async () => {
     setIsRunning(true)
     setProgress(0)
+    setError(null)
     setActiveTab("results")
 
-    // Simulate progress
+    // Simulate progress updates
     const progressInterval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 90) {
           clearInterval(progressInterval)
           return 90
         }
-        return prev + Math.random() * 15
+        return prev + Math.random() * 10
       })
-    }, 200)
+    }, 500)
 
     try {
+      console.log("[v0] Starting backtest with config:", config)
       const backtestResults = await backtestingEngine.runBacktest(config)
+      console.log("[v0] Backtest completed:", backtestResults)
+
       setResults(backtestResults)
       setProgress(100)
     } catch (error) {
-      console.error("Backtest failed:", error)
+      console.error("[v0] Backtest failed:", error)
+      setError(error instanceof Error ? error.message : "Backtest failed")
     } finally {
       setIsRunning(false)
       clearInterval(progressInterval)
@@ -96,14 +103,14 @@ export function BacktestingDashboard() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold font-[var(--font-heading)]">Backtesting Engine</h2>
-          <p className="text-muted-foreground">Test your strategies against historical data</p>
+          <p className="text-muted-foreground">Test your strategies against real historical market data</p>
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" disabled={!results}>
             <Download className="h-4 w-4 mr-2" />
             Export Results
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" disabled={!results}>
             <Share2 className="h-4 w-4 mr-2" />
             Share Report
           </Button>
@@ -139,7 +146,6 @@ export function BacktestingDashboard() {
                       <SelectItem value="momentum-scalper">Momentum Scalper</SelectItem>
                       <SelectItem value="mean-reversion">Mean Reversion</SelectItem>
                       <SelectItem value="breakout-hunter">Breakout Hunter</SelectItem>
-                      <SelectItem value="news-sentiment">News Sentiment</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -154,10 +160,11 @@ export function BacktestingDashboard() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="BTCUSDT">BTC/USDT</SelectItem>
-                      <SelectItem value="ETHUSDT">ETH/USDT</SelectItem>
-                      <SelectItem value="SPY">SPY</SelectItem>
-                      <SelectItem value="EURUSD">EUR/USD</SelectItem>
+                      {POPULAR_SYMBOLS.map((symbol) => (
+                        <SelectItem key={symbol} value={symbol}>
+                          {symbol.replace("USDT", "/USDT")}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -293,7 +300,15 @@ export function BacktestingDashboard() {
                   <Activity className="h-6 w-6 animate-spin text-primary" />
                   <div className="flex-1">
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm font-medium">Running backtest...</span>
+                      <span className="text-sm font-medium">
+                        {progress < 30
+                          ? "Fetching historical data..."
+                          : progress < 60
+                            ? "Calculating indicators..."
+                            : progress < 90
+                              ? "Running strategy simulation..."
+                              : "Finalizing results..."}
+                      </span>
                       <span className="text-sm text-muted-foreground">{Math.round(progress)}%</span>
                     </div>
                     <Progress value={progress} className="w-full" />
@@ -303,9 +318,22 @@ export function BacktestingDashboard() {
             </Card>
           )}
 
+          {error && (
+            <Card className="bg-card border-border border-destructive">
+              <CardContent className="p-6">
+                <div className="flex items-center space-x-4 text-destructive">
+                  <AlertTriangle className="h-6 w-6" />
+                  <div>
+                    <h3 className="font-semibold">Backtest Failed</h3>
+                    <p className="text-sm">{error}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {results && (
             <>
-              {/* Performance Summary */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Card className="bg-card border-border">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -360,7 +388,6 @@ export function BacktestingDashboard() {
                 </Card>
               </div>
 
-              {/* Equity Curve */}
               <Card className="bg-card border-border">
                 <CardHeader>
                   <CardTitle className="font-[var(--font-heading)]">Equity Curve</CardTitle>
@@ -395,7 +422,6 @@ export function BacktestingDashboard() {
                 </CardContent>
               </Card>
 
-              {/* Detailed Metrics */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card className="bg-card border-border">
                   <CardHeader>
@@ -475,10 +501,42 @@ export function BacktestingDashboard() {
                   </CardContent>
                 </Card>
               </div>
+
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="font-[var(--font-heading)]">Recent Trades</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {results.trades
+                      .slice(-10)
+                      .reverse()
+                      .map((trade) => (
+                        <div key={trade.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                          <div className="flex items-center space-x-3">
+                            <div className={`w-2 h-2 rounded-full ${trade.pnl > 0 ? "bg-green-500" : "bg-red-500"}`} />
+                            <div>
+                              <div className="font-medium">{trade.symbol.replace("USDT", "/USDT")}</div>
+                              <div className="text-sm text-muted-foreground">{trade.side}</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className={`font-semibold ${trade.pnl > 0 ? "text-green-500" : "text-red-500"}`}>
+                              {formatCurrency(trade.pnl)}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {new Date(trade.exitTime).toLocaleDateString()}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </CardContent>
+              </Card>
             </>
           )}
 
-          {!results && !isRunning && (
+          {!results && !isRunning && !error && (
             <Card className="bg-card border-border">
               <CardContent className="p-12 text-center">
                 <BarChart3 className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
@@ -494,6 +552,7 @@ export function BacktestingDashboard() {
           )}
         </TabsContent>
 
+        {/* ... existing code for analysis and optimization tabs ... */}
         <TabsContent value="analysis" className="space-y-6">
           {results ? (
             <>
@@ -615,7 +674,9 @@ export function BacktestingDashboard() {
               <p className="text-muted-foreground mb-4">
                 Optimize strategy parameters using walk-forward analysis and genetic algorithms
               </p>
-              <Button className="bg-primary hover:bg-primary/90">Start Optimization</Button>
+              <Button className="bg-primary hover:bg-primary/90" disabled>
+                Coming Soon
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
