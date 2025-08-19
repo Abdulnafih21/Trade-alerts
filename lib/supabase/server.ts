@@ -5,8 +5,8 @@ import { cache } from "react"
 export const isSupabaseConfigured =
   typeof process.env.NEXT_PUBLIC_SUPABASE_URL === "string" &&
   process.env.NEXT_PUBLIC_SUPABASE_URL.length > 0 &&
-  typeof process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY === "string" &&
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.length > 0
+  typeof process.env.SUPABASE_SERVICE_ROLE_KEY === "string" &&
+  process.env.SUPABASE_SERVICE_ROLE_KEY.length > 0
 
 // Create a cached version of the Supabase client for Server Components
 export const createServerClient = cache(() => {
@@ -26,5 +26,26 @@ export const createServerClient = cache(() => {
     }
   }
 
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error("Missing Supabase environment variables:", {
+      url: !!supabaseUrl,
+      serviceKey: !!supabaseServiceKey,
+    })
+    throw new Error("Supabase configuration is incomplete")
+  }
+
+  try {
+    return createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
+  } catch (error) {
+    console.error("Failed to create Supabase client:", error)
+    throw error
+  }
 })
